@@ -1,4 +1,4 @@
-import {Checkbox, DataLoader, Page, Select} from 'argo-ui/src/index';
+import {Checkbox, Page} from 'argo-ui/src/index';
 import {ChartOptions} from 'chart.js';
 import 'chartjs-plugin-annotation';
 import * as React from 'react';
@@ -7,12 +7,15 @@ import {RouteComponentProps} from 'react-router-dom';
 import {getColorForNodePhase, NODE_PHASE, Workflow} from '../../../models';
 import {uiUrl} from '../../shared/base';
 import {BasePage} from '../../shared/components/base-page';
+import {DataLoaderDropdown} from '../../shared/components/data-loader-dropdown';
 import {ErrorNotice} from '../../shared/components/error-notice';
-import {InputFilter} from '../../shared/components/input-filter';
+import {InfoIcon} from '../../shared/components/fa-icons';
+import {NamespaceFilter} from '../../shared/components/namespace-filter';
 import {TagsInput} from '../../shared/components/tags-input/tags-input';
 import {ZeroState} from '../../shared/components/zero-state';
 import {Consumer, ContextApis} from '../../shared/context';
 import {denominator} from '../../shared/duration';
+import {Footnote} from '../../shared/footnote';
 import {services} from '../../shared/services';
 import {Utils} from '../../shared/utils';
 
@@ -43,16 +46,8 @@ export class Reports extends BasePage<RouteComponentProps<any>, State> {
         this.setLabel(labelKeyPhase, value);
     }
 
-    private get workflowTemplate() {
-        return this.getLabel(labelKeyWorkflowTemplate);
-    }
-
     private set workflowTemplate(value: string) {
         this.setLabel(labelKeyWorkflowTemplate, value);
-    }
-
-    private get cronWorkflow() {
-        return this.getLabel(labelKeyCronWorkflow);
     }
 
     private set cronWorkflow(value: string) {
@@ -76,9 +71,19 @@ export class Reports extends BasePage<RouteComponentProps<any>, State> {
         return (
             <Consumer>
                 {ctx => (
-                    <Page title='Reports' toolbar={{breadcrumbs: [{title: 'Reports', path: uiUrl('/reports/' + this.state.namespace)}]}}>
-                        {this.renderFilters()}
-                        {this.renderReport(ctx)}
+                    <Page
+                        title='Reports'
+                        toolbar={{
+                            breadcrumbs: [
+                                {title: 'Reports', path: uiUrl('reports')},
+                                {title: this.state.namespace, path: uiUrl('reports/' + this.state.namespace)}
+                            ]
+                        }}>
+                        <div className='row'>
+                            <div className='columns small-12 xlarge-2'>{this.renderFilters()}</div>
+
+                            <div className='columns small-12 xlarge-10'>{this.renderReport(ctx)}</div>
+                        </div>
                     </Page>
                 )}
             </Consumer>
@@ -121,7 +126,7 @@ export class Reports extends BasePage<RouteComponentProps<any>, State> {
                 this.state.labels.join(',') +
                 (this.state.archivedWorkflows ? '&archivedWorkflows=' + this.state.archivedWorkflows : '')
         );
-        Utils.setCurrentNamespace(this.state.namespace);
+        Utils.currentNamespace = this.state.namespace;
     }
 
     private getExtractDatasets(workflows: Workflow[]) {
@@ -249,22 +254,22 @@ export class Reports extends BasePage<RouteComponentProps<any>, State> {
 
     private renderFilters() {
         return (
-            <div style={{margin: 25}} className='wf-filters-container'>
+            <div className='wf-filters-container'>
                 <div className='row'>
-                    <div className='columns small-4 xlarge-12'>
+                    <div className=' columns small-12 xlarge-12'>
                         <p className='wf-filters-container__title'>Archived Workflows</p>
                         <Checkbox checked={this.state.archivedWorkflows} onChange={checked => this.fetchReport(this.state.namespace, this.state.labels, checked)} />
                     </div>
-                    <div className='columns small-4 xlarge-12'>
+                    <div className=' columns small-12 xlarge-12'>
                         <p className='wf-filters-container__title'>Namespace</p>
-                        <InputFilter
-                            name='namespace'
+                        <NamespaceFilter
                             value={this.state.namespace}
-                            placeholder='Namespace'
-                            onChange={namespace => this.fetchReport(namespace, this.state.labels, this.state.archivedWorkflows)}
+                            onChange={namespace => {
+                                this.fetchReport(namespace, this.state.labels, this.state.archivedWorkflows);
+                            }}
                         />
                     </div>
-                    <div className='columns small-4 xlarge-12'>
+                    <div className=' columns small-12 xlarge-12'>
                         <p className='wf-filters-container__title'>Labels</p>
                         <TagsInput
                             placeholder='Labels'
@@ -272,19 +277,21 @@ export class Reports extends BasePage<RouteComponentProps<any>, State> {
                             onChange={labels => this.fetchReport(this.state.namespace, labels, this.state.archivedWorkflows)}
                         />
                     </div>
-                    <div className='columns small-4 xlarge-12'>
+                    <div className=' columns small-12 xlarge-12'>
                         <p className='wf-filters-container__title'>Workflow Template</p>
-                        <DataLoader load={() => services.workflowTemplate.list(this.state.namespace).then(list => list.map(x => x.metadata.name))}>
-                            {list => <Select options={list} value={this.workflowTemplate} onChange={x => (this.workflowTemplate = x.value)} />}
-                        </DataLoader>
+                        <DataLoaderDropdown
+                            load={() => services.workflowTemplate.list(this.state.namespace).then(list => list.map(x => x.metadata.name))}
+                            onChange={value => (this.workflowTemplate = value)}
+                        />
                     </div>
-                    <div className='columns small-4 xlarge-12'>
+                    <div className=' columns small-12 xlarge-12'>
                         <p className='wf-filters-container__title'>Cron Workflow</p>
-                        <DataLoader load={() => services.cronWorkflows.list(this.state.namespace).then(list => list.map(x => x.metadata.name))}>
-                            {list => <Select options={list} value={this.cronWorkflow} onChange={x => (this.cronWorkflow = x.value)} />}
-                        </DataLoader>
+                        <DataLoaderDropdown
+                            load={() => services.cronWorkflows.list(this.state.namespace).then(list => list.map(x => x.metadata.name))}
+                            onChange={value => (this.cronWorkflow = value)}
+                        />
                     </div>
-                    <div className='columns small-43 xlarge-12'>
+                    <div className=' columns small-12 xlarge-12'>
                         <p className='wf-filters-container__title'>Phase</p>
                         {[NODE_PHASE.SUCCEEDED, NODE_PHASE.ERROR, NODE_PHASE.FAILED].map(phase => (
                             <label key={phase} style={{marginRight: 10}}>
@@ -300,7 +307,7 @@ export class Reports extends BasePage<RouteComponentProps<any>, State> {
 
     private renderReport(ctx: ContextApis) {
         if (this.state.error) {
-            return <ErrorNotice error={this.state.error} style={{margin: 20}} />;
+            return <ErrorNotice error={this.state.error} />;
         }
         if (!this.state.charts) {
             return (
@@ -308,11 +315,12 @@ export class Reports extends BasePage<RouteComponentProps<any>, State> {
                     <p>
                         Use this page to find costly or time consuming workflows. You must label workflows you want to report on. If you use <b>workflow templates</b> or{' '}
                         <b>cron workflows</b>, your workflows will be automatically labelled. You'll probably need to enable the{' '}
-                        <a href='https://argoproj.github.io/argo/workflow-archive/'>workflow archive</a> to get long term data. Only the {limit} most recent workflows are shown.
+                        <a href='https://argoproj.github.io/argo-workflows/workflow-archive/'>workflow archive</a> to get long term data. Only the {limit} most recent workflows are
+                        shown.
                     </p>
                     <p>Select a namespace and at least one label to get a report.</p>
                     <p>
-                        <a href='https://argoproj.github.io/argo/cost-optimisation/'>Learn more about cost optimization</a>
+                        <a href='https://argoproj.github.io/argo-workflows/cost-optimisation/'>Learn more about cost optimization</a>
                     </p>
                 </ZeroState>
             );
@@ -320,32 +328,26 @@ export class Reports extends BasePage<RouteComponentProps<any>, State> {
         return (
             <>
                 {this.state.charts.map(chart => (
-                    <div className='row' key={chart.data.name}>
-                        <div className='columns small-12'>
-                            <div className='white-box'>
-                                <Bar
-                                    data={chart.data}
-                                    options={chart.options}
-                                    onElementsClick={(e: any[]) => {
-                                        const activePoint = e[0];
-                                        if (activePoint === undefined) {
-                                            return;
-                                        }
-                                        const workflowName = chart.data.labels[activePoint._index];
-                                        ctx.navigation.goto(uiUrl('workflows/' + this.state.namespace + '/' + workflowName));
-                                    }}
-                                />
-                            </div>
+                    <div key={chart.data.name}>
+                        <div className='white-box'>
+                            <Bar
+                                data={chart.data}
+                                options={chart.options}
+                                onElementsClick={(e: any[]) => {
+                                    const activePoint = e[0];
+                                    if (activePoint === undefined) {
+                                        return;
+                                    }
+                                    const workflowName = chart.data.labels[activePoint._index];
+                                    ctx.navigation.goto(uiUrl('workflows/' + this.state.namespace + '/' + workflowName));
+                                }}
+                            />
                         </div>
                     </div>
                 ))}
-                <div className='row' key='info'>
-                    <div className='columns small-12'>
-                        <small>
-                            <i className='fa fa-info-circle' /> {this.state.charts[0].data.labels.length} records.
-                        </small>
-                    </div>
-                </div>
+                <Footnote>
+                    <InfoIcon /> {this.state.charts[0].data.labels.length} records.
+                </Footnote>
             </>
         );
     }

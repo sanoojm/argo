@@ -1,4 +1,4 @@
-// +build e2e
+// +build functional
 
 package e2e
 
@@ -8,13 +8,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/argoproj/argo/pkg/apis/workflow"
-	wfv1 "github.com/argoproj/argo/pkg/apis/workflow/v1alpha1"
-	"github.com/argoproj/argo/test/e2e/fixtures"
-	"github.com/argoproj/argo/workflow/common"
+	wfv1 "github.com/argoproj/argo-workflows/v3/pkg/apis/workflow/v1alpha1"
+	"github.com/argoproj/argo-workflows/v3/test/e2e/fixtures"
 )
 
 type MalformedResourcesSuite struct {
@@ -27,34 +24,12 @@ func (s *MalformedResourcesSuite) TestMalformedWorkflow() {
 		WorkflowName("malformed").
 		When().
 		// it is not possible to wait for this to finish, because it is malformed
-		Wait(30 * time.Second).
+		Wait(3 * time.Second).
 		Then().
 		ExpectWorkflow(func(t *testing.T, metadata *metav1.ObjectMeta, status *wfv1.WorkflowStatus) {
 			assert.Equal(t, "malformed", metadata.Name)
-			assert.Equal(t, wfv1.NodeFailed, status.Phase)
+			assert.Equal(t, wfv1.WorkflowFailed, status.Phase)
 		})
-}
-
-func (s *MalformedResourcesSuite) TestMalformedCronWorkflow() {
-	s.Given().
-		Exec("kubectl", []string{"apply", "-f", "testdata/malformed/malformed-cronworkflow.yaml"}, fixtures.NoError).
-		Exec("kubectl", []string{"apply", "-f", "testdata/wellformed/wellformed-cronworkflow.yaml"}, fixtures.NoError).
-		When().
-		WaitForWorkflow(1*time.Minute+15*time.Second).
-		Then().
-		ExpectWorkflow(func(t *testing.T, metadata *metav1.ObjectMeta, status *wfv1.WorkflowStatus) {
-			assert.Equal(t, "wellformed", metadata.Labels[common.LabelKeyCronWorkflow])
-			assert.Equal(t, wfv1.NodeSucceeded, status.Phase)
-		}).
-		ExpectAuditEvents(
-			fixtures.HasInvolvedObjectWithName(workflow.CronWorkflowKind, "malformed"),
-			1,
-			func(t *testing.T, e []corev1.Event) {
-				assert.Equal(t, corev1.EventTypeWarning, e[0].Type)
-				assert.Equal(t, "Malformed", e[0].Reason)
-				assert.Equal(t, "cannot restore slice from map", e[0].Message)
-			},
-		)
 }
 
 func (s *MalformedResourcesSuite) TestMalformedWorkflowTemplate() {
@@ -67,7 +42,7 @@ func (s *MalformedResourcesSuite) TestMalformedWorkflowTemplate() {
 		Then().
 		ExpectWorkflow(func(t *testing.T, metadata *metav1.ObjectMeta, status *wfv1.WorkflowStatus) {
 			assert.Equal(t, "wellformed", metadata.Name)
-			assert.Equal(t, wfv1.NodeSucceeded, status.Phase)
+			assert.Equal(t, wfv1.WorkflowSucceeded, status.Phase)
 		})
 }
 
@@ -80,7 +55,7 @@ func (s *MalformedResourcesSuite) TestMalformedWorkflowTemplateRef() {
 		Then().
 		ExpectWorkflow(func(t *testing.T, metadata *metav1.ObjectMeta, status *wfv1.WorkflowStatus) {
 			assert.Equal(t, "wellformed", metadata.Name)
-			assert.Equal(t, wfv1.NodeError, status.Phase)
+			assert.Equal(t, wfv1.WorkflowError, status.Phase)
 			assert.Contains(t, status.Message, "malformed workflow template")
 		})
 }
@@ -95,7 +70,7 @@ func (s *MalformedResourcesSuite) TestMalformedClusterWorkflowTemplate() {
 		Then().
 		ExpectWorkflow(func(t *testing.T, metadata *metav1.ObjectMeta, status *wfv1.WorkflowStatus) {
 			assert.Equal(t, "wellformed", metadata.Name)
-			assert.Equal(t, wfv1.NodeSucceeded, status.Phase)
+			assert.Equal(t, wfv1.WorkflowSucceeded, status.Phase)
 		})
 }
 
@@ -108,7 +83,7 @@ func (s *MalformedResourcesSuite) TestMalformedClusterWorkflowTemplateRef() {
 		Then().
 		ExpectWorkflow(func(t *testing.T, metadata *metav1.ObjectMeta, status *wfv1.WorkflowStatus) {
 			assert.Equal(t, "wellformed", metadata.Name)
-			assert.Equal(t, wfv1.NodeError, status.Phase)
+			assert.Equal(t, wfv1.WorkflowError, status.Phase)
 			assert.Contains(t, status.Message, "malformed cluster workflow template")
 		})
 }

@@ -3,11 +3,14 @@ package errors
 import (
 	"net"
 	"net/url"
+	"os"
+	"regexp"
 	"strings"
 
+	log "github.com/sirupsen/logrus"
 	apierr "k8s.io/apimachinery/pkg/api/errors"
 
-	argoerrs "github.com/argoproj/argo/errors"
+	argoerrs "github.com/argoproj/argo-workflows/v3/errors"
 )
 
 func IsTransientErr(err error) bool {
@@ -15,7 +18,24 @@ func IsTransientErr(err error) bool {
 		return false
 	}
 	err = argoerrs.Cause(err)
-	return isExceededQuotaErr(err) || apierr.IsTooManyRequests(err) || isResourceQuotaConflictErr(err) || isTransientNetworkErr(err)
+	isTransient := isExceededQuotaErr(err) || apierr.IsTooManyRequests(err) || isResourceQuotaConflictErr(err) || isTransientNetworkErr(err) || apierr.IsServerTimeout(err) || apierr.IsServiceUnavailable(err) || matchTransientErrPattern(err)
+	if isTransient {
+		log.Infof("Transient error: %v", err)
+	} else {
+		log.Errorf("Non-transient error: %v", err)
+	}
+	return isTransient
+}
+
+func matchTransientErrPattern(err error) bool {
+	// TRANSIENT_ERROR_PATTERN allows to specify the pattern to match for errors that can be seen as transient
+	// and retryable.
+	pattern, _ := os.LookupEnv("TRANSIENT_ERROR_PATTERN")
+	if pattern == "" {
+		return false
+	}
+	match, _ := regexp.MatchString(pattern, err.Error())
+	return match
 }
 
 func isExceededQuotaErr(err error) bool {

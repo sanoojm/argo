@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net"
 	"net/url"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -17,9 +18,14 @@ func (n netError) Error() string   { return string(n) }
 func (n netError) Timeout() bool   { return false }
 func (n netError) Temporary() bool { return false }
 
-var tlsHandshakeTimeoutErr net.Error = netError("net/http: TLS handshake timeout")
-var ioTimeoutErr net.Error = netError("i/o timeout")
-var connectionTimedout net.Error = netError("connection timed out")
+var (
+	tlsHandshakeTimeoutErr net.Error = netError("net/http: TLS handshake timeout")
+	ioTimeoutErr           net.Error = netError("i/o timeout")
+	connectionTimedout     net.Error = netError("connection timed out")
+	transientErr           net.Error = netError("this error is transient")
+)
+
+const transientEnvVarKey = "TRANSIENT_ERROR_PATTERN"
 
 func TestIsTransientErr(t *testing.T) {
 	t.Run("Nil", func(t *testing.T) {
@@ -57,5 +63,17 @@ func TestIsTransientErr(t *testing.T) {
 	})
 	t.Run("ConnectionTimeout", func(t *testing.T) {
 		assert.True(t, IsTransientErr(connectionTimedout))
+	})
+	t.Run("TransientErrorPattern", func(t *testing.T) {
+		_ = os.Setenv(transientEnvVarKey, "this error is transient")
+		assert.True(t, IsTransientErr(transientErr))
+
+		_ = os.Setenv(transientEnvVarKey, "this error is not transient")
+		assert.False(t, IsTransientErr(transientErr))
+
+		_ = os.Setenv(transientEnvVarKey, "")
+		assert.False(t, IsTransientErr(transientErr))
+
+		_ = os.Unsetenv(transientEnvVarKey)
 	})
 }

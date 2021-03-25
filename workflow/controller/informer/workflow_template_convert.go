@@ -7,7 +7,8 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	wfv1 "github.com/argoproj/argo/pkg/apis/workflow/v1alpha1"
+	wfv1 "github.com/argoproj/argo-workflows/v3/pkg/apis/workflow/v1alpha1"
+	"github.com/argoproj/argo-workflows/v3/workflow/util"
 )
 
 func objectToWorkflowTemplate(object runtime.Object) (*wfv1.WorkflowTemplate, error) {
@@ -16,7 +17,7 @@ func objectToWorkflowTemplate(object runtime.Object) (*wfv1.WorkflowTemplate, er
 	if !ok {
 		return v, fmt.Errorf("malformed workflow template: expected \"*unstructured.Unstructured\", got \"%s\"", reflect.TypeOf(object).String())
 	}
-	err := runtime.DefaultUnstructuredConverter.FromUnstructured(un.Object, v)
+	err := util.FromUnstructuredObj(un, v)
 	if err != nil {
 		return v, fmt.Errorf("malformed workflow template \"%s/%s\": %w", un.GetNamespace(), un.GetName(), err)
 	}

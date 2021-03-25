@@ -4,7 +4,9 @@ Please find [here](community/ArgoWorkflows2020SurveySummary.pdf) Argo Workflows 
 
 ## Who uses Argo Workflows?
 
-As the Argo Community grows, we'd like to keep track of our users. Please send a PR with your organization name.
+As the Argo Community grows, we'd like to keep track of our users. Please send a PR with your organization or project name in the following sections.
+
+### Organizations Using Argo
 
 Currently, the following organizations are **officially** using Argo Workflows:
 
@@ -16,13 +18,17 @@ Currently, the following organizations are **officially** using Argo Workflows:
 1. [Alibaba Cloud](https://www.alibabacloud.com/about)
 1. [Ant Group](https://www.antgroup.com/)
 1. [AppDirect](https://www.appdirect.com/)
+1. [Astraea](https://astraea.earth/)
 1. [BasisAI](https://basis-ai.com/)
+1. [BEI.RE](https://www.bei.re/)
 1. [BioBox Analytics](https://biobox.io)
 1. [BlackRock](https://www.blackrock.com/)
+1. [bonprix](https://en.bonprix.de/corporate/our-company/)
 1. [Canva](https://www.canva.com/)
 1. [Capital One](https://www.capitalone.com/tech/)
 1. [CarTrack](https://www.cartrack.com/)
 1. [CCRi](https://www.ccri.com/)
+1. [CloudSeeds](https://www.cloudseeds.de/)
 1. [Codec](https://www.codec.ai/)
 1. [Commodus Tech](https://www.commodus.tech)
 1. [Concierge Render](https://www.conciergerender.com)
@@ -35,10 +41,15 @@ Currently, the following organizations are **officially** using Argo Workflows:
 1. [Data4Risk](https://www.data4risk.com/)
 1. [Datadog](https://www.datadoghq.com/)
 1. [DataStax](https://www.datastax.com/)
+1. [DDEV](https://www.ddev.com/)
+1. [Devtron Labs](https://github.com/devtron-labs/devtron)
 1. [DevSamurai](https://www.devsamurai.com/)
+1. [DLR](https://www.dlr.de/eoc/)
 1. [EBSCO Information Services](https://www.ebsco.com/)
 1. [Equinor](https://www.equinor.com/)
 1. [Fairwinds](https://fairwinds.com/)
+1. [FOLIO](http://corp.folio-sec.com/)
+1. [FreeWheel](https://freewheel.com/)
 1. [Fynd Trak](https://trak.fynd.com/)
 1. [Gardener](https://gardener.cloud/)
 1. [GitHub](https://github.com/)
@@ -56,6 +67,7 @@ Currently, the following organizations are **officially** using Argo Workflows:
 1. [Intuit](https://www.intuit.com/)
 1. [InVision](https://www.invisionapp.com/)
 1. [İşbank](https://www.isbank.com.tr/en)
+1. [Jungle](https://www.jungle.ai/)
 1. [Karius](https://www.kariusdx.com/)
 1. [Kasa](https://www.kasa.co.kr/)
 1. [KintoHub](https://www.kintohub.com/)
@@ -66,14 +78,17 @@ Currently, the following organizations are **officially** using Argo Workflows:
 1. [Microblink](https://microblink.com/)
 1. [Mirantis](https://mirantis.com/)
 1. [Mixpanel](https://mixpanel.com)
+1. [Motus](https://www.motus.com)
 1. [New Relic](https://newrelic.com/)
 1. [Nikkei](https://www.nikkei.co.jp/nikkeiinfo/en/)
+1. [Norwegian Refugee Council](https://www.nrc.no/)
 1. [nrd.io](https://nrd.io/)
 1. [NVIDIA](https://www.nvidia.com/)
 1. [Onepanel](https://docs.onepanel.ai)
 1. [OVH](https://www.ovh.com/)
 1. [Peak AI](https://www.peak.ai/)
 1. [PDOK](https://www.pdok.nl/)
+1. [Polarpoint.io](https://polarpoint.io)
 1. [Pollination](https://pollination.cloud)
 1. [Preferred Networks](https://www.preferred-networks.jp/en/)
 1. [Prudential](https://www.prudential.com.sg/)
@@ -88,6 +103,7 @@ Currently, the following organizations are **officially** using Argo Workflows:
 1. [SAP Fieldglass](https://www.fieldglass.com/)
 1. [SAP Hybris](https://cx.sap.com/)
 1. [SAS](https://www.sas.com/)
+1. [Schlumberger](https://slb.com/)
 1. [SegmentStream](https://segmentstream.com)
 1. [Sidecar Technologies](https://hello.getsidecar.com/)
 1. [Sohu](https://www.sohu.com/)
@@ -98,5 +114,16 @@ Currently, the following organizations are **officially** using Argo Workflows:
 1. [Tiger Analytics](https://www.tigeranalytics.com/)
 1. [Tulip](https://tulip.com/)
 1. [UFirstGroup](https://www.ufirstgroup.com)
+1. [Vispera](https://www.vispera.co)
 1. [Wavefront](https://www.wavefront.com/)
 1. [Wellcome Trust](https://wellcome.ac.uk/)
+1. [Woolworths Group](https://www.woolworthsgroup.com.au/)
+
+### Projects Using Argo
+
+In addition, the following projects are **officially** using Argo Workflows:
+
+1. [Couler](https://github.com/couler-proj/couler)
+1. [Kubeflow](https://www.kubeflow.org/)
+2. [Onepanel](https://github.com/onepanelio/onepanel)
+3. [SQLFlow](https://github.com/sql-machine-learning/sqlflow)

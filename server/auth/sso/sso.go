@@ -18,17 +18,17 @@ import (
 	"gopkg.in/square/go-jose.v2"
 	"gopkg.in/square/go-jose.v2/jwt"
 	apiv1 "k8s.io/api/core/v1"
+	apierr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 
-	"github.com/argoproj/argo/server/auth/rbac"
-	"github.com/argoproj/argo/server/auth/types"
+	"github.com/argoproj/argo-workflows/v3/server/auth/rbac"
+	"github.com/argoproj/argo-workflows/v3/server/auth/types"
 )
 
 const (
 	Prefix                              = "Bearer v2:"
 	issuer                              = "argo-server"                // the JWT issuer
-	expiry                              = 10 * time.Hour               // how long JWT are valid for
 	secretName                          = "sso"                        // where we store SSO secret
 	cookieEncryptionPrivateKeySecretKey = "cookieEncryptionPrivateKey" // the key name for the private key in the secret
 )
@@ -52,6 +52,7 @@ type sso struct {
 	privateKey      crypto.PrivateKey
 	encrypter       jose.Encrypter
 	rbacConfig      *rbac.Config
+	expiry          time.Duration
 }
 
 func (s *sso) IsRBACEnabled() bool {
@@ -65,7 +66,15 @@ type Config struct {
 	RedirectURL  string                  `json:"redirectUrl"`
 	RBAC         *rbac.Config            `json:"rbac,omitempty"`
 	// additional scopes (on top of "openid")
-	Scopes []string `json:"scopes,omitempty"`
+	Scopes        []string        `json:"scopes,omitempty"`
+	SessionExpiry metav1.Duration `json:"sessionExpiry,omitempty"`
+}
+
+func (c Config) GetSessionExpiry() time.Duration {
+	if c.SessionExpiry.Duration > 0 {
+		return c.SessionExpiry.Duration
+	}
+	return 10 * time.Hour
 }
 
 // Abstract methods of oidc.Provider that our code uses into an interface. That
@@ -106,7 +115,8 @@ func newSso(
 	if c.RedirectURL == "" {
 		return nil, fmt.Errorf("redirectUrl empty")
 	}
-	clientSecretObj, err := secretsIf.Get(c.ClientSecret.Name, metav1.GetOptions{})
+	ctx := context.Background()
+	clientSecretObj, err := secretsIf.Get(ctx, c.ClientSecret.Name, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -114,12 +124,11 @@ func newSso(
 	if err != nil {
 		return nil, err
 	}
-
 	var clientIDObj *apiv1.Secret
 	if c.ClientID.Name == c.ClientSecret.Name {
 		clientIDObj = clientSecretObj
 	} else {
-		clientIDObj, err = secretsIf.Get(c.ClientID.Name, metav1.GetOptions{})
+		clientIDObj, err = secretsIf.Get(ctx, c.ClientID.Name, metav1.GetOptions{})
 		if err != nil {
 			return nil, err
 		}
@@ -132,11 +141,14 @@ func newSso(
 	// if it fails, then the get will fail, and the pod restart
 	// it may fail due to race condition with another pod - which is fine,
 	// when it restart it'll get the new key
-	_, _ = secretsIf.Create(&apiv1.Secret{
+	_, err = secretsIf.Create(ctx, &apiv1.Secret{
 		ObjectMeta: metav1.ObjectMeta{Name: secretName},
 		Data:       map[string][]byte{cookieEncryptionPrivateKeySecretKey: x509.MarshalPKCS1PrivateKey(generatedKey)},
-	})
-	secret, err := secretsIf.Get(secretName, metav1.GetOptions{})
+	}, metav1.CreateOptions{})
+	if err != nil && !apierr.IsAlreadyExists(err) {
+		return nil, fmt.Errorf("failed to create secret: %w", err)
+	}
+	secret, err := secretsIf.Get(ctx, secretName, metav1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to read secret: %w", err)
 	}
@@ -165,7 +177,7 @@ func newSso(
 	if err != nil {
 		return nil, fmt.Errorf("failed to create JWT encrpytor: %w", err)
 	}
-	log.WithFields(log.Fields{"redirectUrl": config.RedirectURL, "issuer": c.Issuer, "clientId": c.ClientID}).Info("SSO configuration")
+	log.WithFields(log.Fields{"redirectUrl": config.RedirectURL, "issuer": c.Issuer, "clientId": c.ClientID, "scopes": config.Scopes}).Info("SSO configuration")
 	return &sso{
 		config:          config,
 		idTokenVerifier: idTokenVerifier,
@@ -174,16 +186,16 @@ func newSso(
 		privateKey:      privateKey,
 		encrypter:       encrypter,
 		rbacConfig:      c.RBAC,
+		expiry:          c.GetSessionExpiry(),
 	}, nil
 }
 
-const stateCookieName = "oauthState"
-
 func (s *sso) HandleRedirect(w http.ResponseWriter, r *http.Request) {
+	redirectUrl := r.URL.Query().Get("redirect")
 	state := pkgrand.RandString(10)
 	http.SetCookie(w, &http.Cookie{
-		Name:     stateCookieName,
-		Value:    state,
+		Name:     state,
+		Value:    redirectUrl,
 		Expires:  time.Now().Add(3 * time.Minute),
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
@@ -195,16 +207,11 @@ func (s *sso) HandleRedirect(w http.ResponseWriter, r *http.Request) {
 func (s *sso) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	state := r.URL.Query().Get("state")
-	cookie, err := r.Cookie(stateCookieName)
-	http.SetCookie(w, &http.Cookie{Name: stateCookieName, MaxAge: 0})
+	cookie, err := r.Cookie(state)
+	http.SetCookie(w, &http.Cookie{Name: state, MaxAge: 0})
 	if err != nil {
 		w.WriteHeader(400)
 		_, _ = w.Write([]byte(fmt.Sprintf("invalid state: %v", err)))
-		return
-	}
-	if state != cookie.Value {
-		w.WriteHeader(401)
-		_, _ = w.Write([]byte("invalid state: does not match cookie value"))
 		return
 	}
 	oauth2Token, err := s.config.Exchange(ctx, r.URL.Query().Get("code"))
@@ -231,7 +238,17 @@ func (s *sso) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(fmt.Sprintf("failed to get claims: %v", err)))
 		return
 	}
-	argoClaims := &types.Claims{Claims: jwt.Claims{Issuer: issuer, Subject: c.Subject, Expiry: jwt.NewNumericDate(time.Now().Add(expiry))}, Groups: c.Groups}
+	argoClaims := &types.Claims{
+		Claims: jwt.Claims{
+			Issuer:  issuer,
+			Subject: c.Subject,
+			Expiry:  jwt.NewNumericDate(time.Now().Add(s.expiry)),
+		},
+		Groups:             c.Groups,
+		Email:              c.Email,
+		EmailVerified:      c.EmailVerified,
+		ServiceAccountName: c.ServiceAccountName,
+	}
 	raw, err := jwt.Encrypted(s.encrypter).Claims(argoClaims).CompactSerialize()
 	if err != nil {
 		panic(err)
@@ -242,11 +259,15 @@ func (s *sso) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		Value:    value,
 		Name:     "authorization",
 		Path:     s.baseHRef,
-		Expires:  time.Now().Add(expiry),
+		Expires:  time.Now().Add(s.expiry),
 		SameSite: http.SameSiteStrictMode,
 		Secure:   s.secure,
 	})
-	http.Redirect(w, r, s.baseHRef, 302)
+	redirect := s.baseHRef
+	if cookie.Value != "" {
+		redirect = cookie.Value
+	}
+	http.Redirect(w, r, redirect, 302)
 }
 
 // authorize verifies a bearer token and pulls user information form the claims.

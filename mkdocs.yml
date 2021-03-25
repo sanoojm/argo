@@ -1,5 +1,5 @@
 site_name: Argo Workflows - The workflow engine for Kubernetes
-repo_url: https://github.com/argoproj/argo
+repo_url: https://github.com/argoproj/argo-workflows
 strict: true
 theme:
   name: material
@@ -28,19 +28,24 @@ nav:
           - workflow-concepts.md
           - cli.md
           - variables.md
-      # topics that don't require kubctl or re-configuration
+      # topics that don't require kubectl or re-configuration
       - Intermediate:
           - service-accounts.md
           - workflow-rbac.md
           - node-field-selector.md
           - empty-dir.md
           - workflow-templates.md
+          - workflow-inputs.md
           - cluster-workflow-templates.md
           - cron-workflows.md
           - cron-backfill.md
+          - container-set-template.md
           - work-avoidance.md
           - enhanced-depends-logic.md
+          - data-sourcing-and-transformation.md
           - artifact-repository-ref.md
+          - key-only-artifacts.md
+          - conditional-artifacts-parameters.md
           - resource-duration.md
           - estimated-duration.md
           - workflow-pod-security-context.md
@@ -50,9 +55,10 @@ nav:
           - workflow-of-workflows.md
           - memoization.md
           - tolerating-pod-deletion.md
+          - widgets.md
       # all other topics, including API access
       - Advanced:
-          - workflow-requirements.md
+          - workflow-restrictions.md
           - workflow-notifications.md
           - workflow-events.md
           - kubectl.md
@@ -117,11 +123,13 @@ nav:
           - argo watch: cli/argo_watch.md
   - Operator Manual:
       - installation.md
+      - releases.md
       - Configuration:
           - managed-namespace.md
           - configure-artifact-repository.md
           - workflow-controller-configmap.md
           - workflow-executors.md
+          - sidecar-injection.md
           - default-workflow-specs.md
           - offloading-large-workflows.md
           - workflow-archive.md
@@ -132,9 +140,12 @@ nav:
           - argo-server-auth-mode.md
           - tls.md
           - argo-server-sso.md
+      - high-availability.md
+      - disaster-recovery.md
       - scaling.md
       - cost-optimisation.md
       - windows.md
+      - environment-variables.md
   - Developer Guide:
       - CONTRIBUTING.md
       - architecture.md
@@ -142,8 +153,9 @@ nav:
       - versioning.md
       - public-api.md
       - static-code-analysis.md
+      - stress-testing.md
       - releasing.md
-  - Releases ⧉: https://github.com/argoproj/argo/releases
+  - Releases ⧉: https://github.com/argoproj/argo-workflows/releases
   - Roadmap: roadmap.md
   - Blog ⧉: https://blog.argoproj.io/
   - Slack ⧉: https://argoproj.github.io/community/join-slack

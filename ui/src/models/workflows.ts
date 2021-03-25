@@ -100,6 +100,10 @@ export interface Parameter {
      * ValueFrom is the source for the output parameter's value
      */
     valueFrom?: ValueFrom;
+    /**
+     * Enum holds a list of string values to choose from, for the actual value of the parameter
+     */
+    enum?: Array<string>;
 }
 
 /**
@@ -289,6 +293,10 @@ export interface SidecarOptions {
     mirrorVolumeMounts?: boolean;
 }
 
+export interface ContainerNode extends kubernetes.Container {
+    dependencies?: string[];
+}
+
 /**
  * Template is a reusable and composable unit of execution in a workflow
  */
@@ -306,6 +314,10 @@ export interface Template {
      * Container is the main container image to run in the pod
      */
     container?: kubernetes.Container;
+
+    containerSet?: {
+        containers: ContainerNode[];
+    };
     /**
      * Deamon will allow a workflow to proceed to the next step so long as the container reaches readiness
      */
@@ -351,6 +363,11 @@ export interface Template {
      * DAG template
      */
     dag?: DAGTemplate;
+
+    /**
+     * Suspend template
+     */
+    suspend?: {};
 
     /**
      * Template is the name of the template which is used as the base of this template.
@@ -404,7 +421,9 @@ export interface Workflow {
     status?: WorkflowStatus;
 }
 
-export type NodeType = 'Pod' | 'Steps' | 'StepGroup' | 'DAG' | 'Retry' | 'Skipped' | 'TaskGroup' | 'Suspend';
+export const execSpec = (w: Workflow) => Object.assign({}, w.status.storedWorkflowTemplateSpec, w.spec);
+
+export type NodeType = 'Pod' | 'Container' | 'Steps' | 'StepGroup' | 'DAG' | 'Retry' | 'Skipped' | 'TaskGroup' | 'Suspend';
 
 export interface NodeStatus {
     /**
@@ -607,9 +626,9 @@ export interface WorkflowStatus {
     conditions?: Condition[];
 
     /**
-     * StoredWorkflowSpec is a Workflow Spec of top level WorkflowTemplate.
+     * StoredWorkflowTemplateSpec is a Workflow Spec of top level WorkflowTemplate.
      */
-    storedWorkflowSpec?: WorkflowSpec;
+    storedWorkflowTemplateSpec?: WorkflowSpec;
 }
 
 export interface Condition {
@@ -619,7 +638,7 @@ export interface Condition {
 }
 
 export type ConditionType = 'Completed' | 'SpecWarning' | 'MetricsError' | 'SubmissionError' | 'SpecError';
-export type ConditionStatus = 'True' | 'False' | 'Unknown;';
+export type ConditionStatus = 'True' | 'False' | 'Unknown';
 
 /**
  * WorkflowList is list of Workflow resources
@@ -743,12 +762,18 @@ export interface DAGTemplate {
     /**
      * Target are one or more names of targets to execute in a DAG
      */
-    targets: string;
+    targets?: string;
 
     /**
      * Tasks are a list of DAG tasks
      */
     tasks: DAGTask[];
+}
+
+export interface Sequence {
+    start?: number;
+    end?: number;
+    count?: number;
 }
 
 export interface DAGTask {
@@ -762,17 +787,21 @@ export interface DAGTask {
     /**
      * TemplateRef is the reference to the template resource to execute.
      */
-    templateRef: TemplateRef;
+    templateRef?: TemplateRef;
 
     /**
      * Arguments are the parameter and artifact arguments to the template
      */
-    arguments: Arguments;
+    arguments?: Arguments;
 
     /**
      * Dependencies are name of other targets which this depends on
      */
-    dependencies: string[];
+    dependencies?: string[];
+    onExit?: string;
+    withItems?: any[];
+    withParam?: string;
+    withSequence?: Sequence;
 }
 
 /**
@@ -795,10 +824,13 @@ export interface WorkflowStep {
      * When is an expression in which the step should conditionally execute
      */
     when?: string;
+    onExit?: string;
     /**
      * WithParam expands a step into from the value in the parameter
      */
     withParam?: string;
+    withItems?: any[];
+    withSequence?: Sequence;
     /**
      * TemplateRef is the reference to the template resource which is used as the base of this template.
      */
@@ -824,7 +856,11 @@ export interface MemoizationStatus {
     cacheName: string;
 }
 
-export type NodePhase = 'Pending' | 'Running' | 'Succeeded' | 'Skipped' | 'Failed' | 'Error' | 'Omitted';
+export type WorkflowPhase = 'Pending' | 'Running' | 'Succeeded' | 'Failed' | 'Error';
+
+export const WorkflowPhases: WorkflowPhase[] = ['Pending', 'Running', 'Succeeded', 'Failed', 'Error'];
+
+export type NodePhase = '' | 'Pending' | 'Running' | 'Succeeded' | 'Skipped' | 'Failed' | 'Error' | 'Omitted';
 
 export const NODE_PHASE = {
     PENDING: 'Pending',
@@ -852,3 +888,8 @@ export function getColorForNodePhase(p: NodePhase) {
 }
 
 export type ResourceScope = 'local' | 'namespaced' | 'cluster';
+
+export interface LogEntry {
+    content: string;
+    podName?: string;
+}

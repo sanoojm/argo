@@ -9,10 +9,13 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
+	runtimeutil "k8s.io/apimachinery/pkg/util/runtime"
 )
 
 // RunServer starts a metrics server
 func (m *Metrics) RunServer(ctx context.Context) {
+	defer runtimeutil.HandleCrash(runtimeutil.PanicHandlers...)
+
 	if !m.metricsConfig.Enabled {
 		// If metrics aren't enabled, return
 		return
@@ -70,6 +73,9 @@ func (m *Metrics) Describe(ch chan<- *prometheus.Desc) {
 		ch <- metric.Desc()
 	}
 	m.logMetric.Describe(ch)
+	K8sRequestTotalMetric.Describe(ch)
+	PodMissingMetric.Describe(ch)
+	WorkflowConditionMetric.Describe(ch)
 }
 
 func (m *Metrics) Collect(ch chan<- prometheus.Metric) {
@@ -77,6 +83,9 @@ func (m *Metrics) Collect(ch chan<- prometheus.Metric) {
 		ch <- metric
 	}
 	m.logMetric.Collect(ch)
+	K8sRequestTotalMetric.Collect(ch)
+	PodMissingMetric.Collect(ch)
+	WorkflowConditionMetric.Collect(ch)
 }
 
 func (m *Metrics) garbageCollector(ctx context.Context) {

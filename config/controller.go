@@ -1,25 +1,26 @@
 package config
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
+	log "github.com/sirupsen/logrus"
 	apiv1 "k8s.io/api/core/v1"
 	apierr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
+	runtimeutil "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
-
-	log "github.com/sirupsen/logrus"
 	"sigs.k8s.io/yaml"
 )
 
 type Controller interface {
 	Run(stopCh <-chan struct{}, onChange func(config interface{}) error)
-	Get() (interface{}, error)
+	Get(context.Context) (interface{}, error)
 }
 
 type controller struct {
@@ -74,16 +75,19 @@ func (cc *controller) parseConfigMap(cm *apiv1.ConfigMap) (interface{}, error) {
 }
 
 func (cc *controller) Run(stopCh <-chan struct{}, onChange func(config interface{}) error) {
+	defer runtimeutil.HandleCrash(runtimeutil.PanicHandlers...)
+
 	restClient := cc.kubeclientset.CoreV1().RESTClient()
 	resource := "configmaps"
 	fieldSelector := fields.ParseSelectorOrDie(fmt.Sprintf("metadata.name=%s", cc.configMap))
+	ctx := context.Background()
 	listFunc := func(options metav1.ListOptions) (runtime.Object, error) {
 		options.FieldSelector = fieldSelector.String()
 		req := restClient.Get().
 			Namespace(cc.namespace).
 			Resource(resource).
 			VersionedParams(&options, metav1.ParameterCodec)
-		return req.Do().Get()
+		return req.Do(ctx).Get()
 	}
 	watchFunc := func(options metav1.ListOptions) (watch.Interface, error) {
 		options.Watch = true
@@ -92,7 +96,7 @@ func (cc *controller) Run(stopCh <-chan struct{}, onChange func(config interface
 			Namespace(cc.namespace).
 			Resource(resource).
 			VersionedParams(&options, metav1.ParameterCodec)
-		return req.Watch()
+		return req.Watch(ctx)
 	}
 	source := &cache.ListWatch{ListFunc: listFunc, WatchFunc: watchFunc}
 	_, controller := cache.NewInformer(
@@ -119,9 +123,9 @@ func (cc *controller) Run(stopCh <-chan struct{}, onChange func(config interface
 	log.Info("Watching config map updates")
 }
 
-func (cc *controller) Get() (interface{}, error) {
+func (cc *controller) Get(ctx context.Context) (interface{}, error) {
 	cmClient := cc.kubeclientset.CoreV1().ConfigMaps(cc.namespace)
-	cm, err := cmClient.Get(cc.configMap, metav1.GetOptions{})
+	cm, err := cmClient.Get(ctx, cc.configMap, metav1.GetOptions{})
 	if err != nil && !apierr.IsNotFound(err) {
 		return cc.emptyConfigFunc(), err
 	}

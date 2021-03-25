@@ -1,6 +1,7 @@
 package util
 
 import (
+	"context"
 	"encoding/json"
 	"io/ioutil"
 	"os"
@@ -10,19 +11,19 @@ import (
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	kubefake "k8s.io/client-go/kubernetes/fake"
 	"sigs.k8s.io/yaml"
 
-	"github.com/argoproj/argo/pkg/apis/workflow"
-	wfv1 "github.com/argoproj/argo/pkg/apis/workflow/v1alpha1"
-	argofake "github.com/argoproj/argo/pkg/client/clientset/versioned/fake"
-	"github.com/argoproj/argo/workflow/common"
-	hydratorfake "github.com/argoproj/argo/workflow/hydrator/fake"
+	"github.com/argoproj/argo-workflows/v3/pkg/apis/workflow"
+	wfv1 "github.com/argoproj/argo-workflows/v3/pkg/apis/workflow/v1alpha1"
+	argofake "github.com/argoproj/argo-workflows/v3/pkg/client/clientset/versioned/fake"
+	"github.com/argoproj/argo-workflows/v3/workflow/common"
+	hydratorfake "github.com/argoproj/argo-workflows/v3/workflow/hydrator/fake"
 )
 
 // TestSubmitDryRun
 func TestSubmitDryRun(t *testing.T) {
-
 	workflowName := "test-dry-run"
 	workflowYaml := `
 apiVersion: argoproj.io/v1alpha1
@@ -41,7 +42,8 @@ spec:
 	wf := unmarshalWF(workflowYaml)
 	newWf := wf.DeepCopy()
 	wfClientSet := argofake.NewSimpleClientset()
-	newWf, err := SubmitWorkflow(nil, wfClientSet, "test-namespace", newWf, &wfv1.SubmitOpts{DryRun: true})
+	ctx := context.Background()
+	newWf, err := SubmitWorkflow(ctx, nil, wfClientSet, "test-namespace", newWf, &wfv1.SubmitOpts{DryRun: true})
 	assert.NoError(t, err)
 	assert.Equal(t, wf.Spec, newWf.Spec)
 	assert.Equal(t, wf.Status, newWf.Status)
@@ -56,7 +58,7 @@ func TestResubmitWorkflowWithOnExit(t *testing.T) {
 			Name: wfName,
 		},
 		Status: wfv1.WorkflowStatus{
-			Phase: wfv1.NodeFailed,
+			Phase: wfv1.WorkflowFailed,
 			Nodes: map[string]wfv1.NodeStatus{},
 		},
 	}
@@ -175,6 +177,15 @@ func unmarshalWF(yamlStr string) *wfv1.Workflow {
 	return &wf
 }
 
+func unmarshalWFT(yamlStr string) *wfv1.WorkflowTemplate {
+	var wft wfv1.WorkflowTemplate
+	err := yaml.Unmarshal([]byte(yamlStr), &wft)
+	if err != nil {
+		panic(err)
+	}
+	return &wft
+}
+
 var yamlStr = `
 containers:
   - name: main
@@ -282,23 +293,24 @@ func TestResumeWorkflowByNodeName(t *testing.T) {
 	wfIf := argofake.NewSimpleClientset().ArgoprojV1alpha1().Workflows("")
 	origWf := unmarshalWF(suspendedWf)
 
-	_, err := wfIf.Create(origWf)
+	ctx := context.Background()
+	_, err := wfIf.Create(ctx, origWf, metav1.CreateOptions{})
 	assert.NoError(t, err)
 
-	//will return error as displayName does not match any nodes
-	err = ResumeWorkflow(wfIf, hydratorfake.Noop, "suspend", "displayName=nonexistant")
+	// will return error as displayName does not match any nodes
+	err = ResumeWorkflow(ctx, wfIf, hydratorfake.Noop, "suspend", "displayName=nonexistant")
 	assert.Error(t, err)
 
-	//displayName didn't match suspend node so should still be running
-	wf, err := wfIf.Get("suspend", metav1.GetOptions{})
+	// displayName didn't match suspend node so should still be running
+	wf, err := wfIf.Get(ctx, "suspend", metav1.GetOptions{})
 	assert.NoError(t, err)
 	assert.Equal(t, wfv1.NodeRunning, wf.Status.Nodes.FindByDisplayName("approve").Phase)
 
-	err = ResumeWorkflow(wfIf, hydratorfake.Noop, "suspend", "displayName=approve")
+	err = ResumeWorkflow(ctx, wfIf, hydratorfake.Noop, "suspend", "displayName=approve")
 	assert.NoError(t, err)
 
-	//displayName matched node so has succeeded
-	wf, err = wfIf.Get("suspend", metav1.GetOptions{})
+	// displayName matched node so has succeeded
+	wf, err = wfIf.Get(ctx, "suspend", metav1.GetOptions{})
 	if assert.NoError(t, err) {
 		assert.Equal(t, wfv1.NodeSucceeded, wf.Status.Nodes.FindByDisplayName("approve").Phase)
 	}
@@ -308,23 +320,24 @@ func TestStopWorkflowByNodeName(t *testing.T) {
 	wfIf := argofake.NewSimpleClientset().ArgoprojV1alpha1().Workflows("")
 	origWf := unmarshalWF(suspendedWf)
 
-	_, err := wfIf.Create(origWf)
+	ctx := context.Background()
+	_, err := wfIf.Create(ctx, origWf, metav1.CreateOptions{})
 	assert.NoError(t, err)
 
-	//will return error as displayName does not match any nodes
-	err = StopWorkflow(wfIf, hydratorfake.Noop, "suspend", "displayName=nonexistant", "error occurred")
+	// will return error as displayName does not match any nodes
+	err = StopWorkflow(ctx, wfIf, hydratorfake.Noop, "suspend", "displayName=nonexistant", "error occurred")
 	assert.Error(t, err)
 
-	//displayName didn't match suspend node so should still be running
-	wf, err := wfIf.Get("suspend", metav1.GetOptions{})
+	// displayName didn't match suspend node so should still be running
+	wf, err := wfIf.Get(ctx, "suspend", metav1.GetOptions{})
 	assert.NoError(t, err)
 	assert.Equal(t, wfv1.NodeRunning, wf.Status.Nodes.FindByDisplayName("approve").Phase)
 
-	err = StopWorkflow(wfIf, hydratorfake.Noop, "suspend", "displayName=approve", "error occurred")
+	err = StopWorkflow(ctx, wfIf, hydratorfake.Noop, "suspend", "displayName=approve", "error occurred")
 	assert.NoError(t, err)
 
-	//displayName matched node so has succeeded
-	wf, err = wfIf.Get("suspend", metav1.GetOptions{})
+	// displayName matched node so has succeeded
+	wf, err = wfIf.Get(ctx, "suspend", metav1.GetOptions{})
 	assert.NoError(t, err)
 	assert.Equal(t, wfv1.NodeFailed, wf.Status.Nodes.FindByDisplayName("approve").Phase)
 }
@@ -417,6 +430,9 @@ status:
         - name: message
           valueFrom:
             supplied: {}
+        - name: message2
+          valueFrom:
+            supplied: {}
       phase: Running
       startedAt: "2020-06-25T18:01:56Z"
       templateName: approve
@@ -430,15 +446,18 @@ func TestUpdateSuspendedNode(t *testing.T) {
 	wfIf := argofake.NewSimpleClientset().ArgoprojV1alpha1().Workflows("")
 	origWf := unmarshalWF(susWorkflow)
 
-	_, err := wfIf.Create(origWf)
+	ctx := context.Background()
+	_, err := wfIf.Create(ctx, origWf, metav1.CreateOptions{})
 	if assert.NoError(t, err) {
-		err = updateSuspendedNode(wfIf, hydratorfake.Noop, "does-not-exist", "displayName=approve", SetOperationValues{OutputParameters: map[string]string{"message": "Hello World"}})
+		err = updateSuspendedNode(ctx, wfIf, hydratorfake.Noop, "does-not-exist", "displayName=approve", SetOperationValues{OutputParameters: map[string]string{"message": "Hello World"}})
 		assert.EqualError(t, err, "workflows.argoproj.io \"does-not-exist\" not found")
-		err = updateSuspendedNode(wfIf, hydratorfake.Noop, "suspend-template", "displayName=does-not-exists", SetOperationValues{OutputParameters: map[string]string{"message": "Hello World"}})
+		err = updateSuspendedNode(ctx, wfIf, hydratorfake.Noop, "suspend-template", "displayName=does-not-exists", SetOperationValues{OutputParameters: map[string]string{"message": "Hello World"}})
 		assert.EqualError(t, err, "currently, set only targets suspend nodes: no suspend nodes matching nodeFieldSelector: displayName=does-not-exists")
-		err = updateSuspendedNode(wfIf, hydratorfake.Noop, "suspend-template", "displayName=approve", SetOperationValues{OutputParameters: map[string]string{"does-not-exist": "Hello World"}})
+		err = updateSuspendedNode(ctx, wfIf, hydratorfake.Noop, "suspend-template", "displayName=approve", SetOperationValues{OutputParameters: map[string]string{"does-not-exist": "Hello World"}})
 		assert.EqualError(t, err, "node is not expecting output parameter 'does-not-exist'")
-		err = updateSuspendedNode(wfIf, hydratorfake.Noop, "suspend-template", "displayName=approve", SetOperationValues{OutputParameters: map[string]string{"message": "Hello World"}})
+		err = updateSuspendedNode(ctx, wfIf, hydratorfake.Noop, "suspend-template", "displayName=approve", SetOperationValues{OutputParameters: map[string]string{"message": "Hello World"}})
+		assert.NoError(t, err)
+		err = updateSuspendedNode(ctx, wfIf, hydratorfake.Noop, "suspend-template", "name=suspend-template-kgfn7[0].approve", SetOperationValues{OutputParameters: map[string]string{"message2": "Hello World 2"}})
 		assert.NoError(t, err)
 	}
 
@@ -447,9 +466,9 @@ func TestUpdateSuspendedNode(t *testing.T) {
 	node := noSpaceWf.Status.Nodes["suspend-template-kgfn7-2667278707"]
 	node.Outputs = nil
 	noSpaceWf.Status.Nodes["suspend-template-kgfn7-2667278707"] = node
-	_, err = wfIf.Create(noSpaceWf)
+	_, err = wfIf.Create(ctx, noSpaceWf, metav1.CreateOptions{})
 	if assert.NoError(t, err) {
-		err = updateSuspendedNode(wfIf, hydratorfake.Noop, "suspend-template-no-outputs", "displayName=approve", SetOperationValues{OutputParameters: map[string]string{"message": "Hello World"}})
+		err = updateSuspendedNode(ctx, wfIf, hydratorfake.Noop, "suspend-template-no-outputs", "displayName=approve", SetOperationValues{OutputParameters: map[string]string{"message": "Hello World"}})
 		assert.EqualError(t, err, "cannot set output parameters because node is not expecting any raw parameters")
 	}
 }
@@ -494,7 +513,7 @@ func TestApplySubmitOpts(t *testing.T) {
 		wf := &wfv1.Workflow{
 			Spec: wfv1.WorkflowSpec{
 				Arguments: wfv1.Arguments{
-					Parameters: []wfv1.Parameter{{Name: "a", Value: wfv1.Int64OrStringPtr("0")}},
+					Parameters: []wfv1.Parameter{{Name: "a", Value: wfv1.AnyStringPtr("0")}},
 				},
 			},
 		}
@@ -719,9 +738,10 @@ func TestDeepDeleteNodes(t *testing.T) {
 	kubeClient := &kubefake.Clientset{}
 	origWf := unmarshalWF(deepDeleteOfNodes)
 
-	wf, err := wfIf.Create(origWf)
+	ctx := context.Background()
+	wf, err := wfIf.Create(ctx, origWf, metav1.CreateOptions{})
 	if assert.NoError(t, err) {
-		newWf, err := RetryWorkflow(kubeClient, hydratorfake.Noop, wfIf, wf.Name, false, "")
+		newWf, err := RetryWorkflow(ctx, kubeClient, hydratorfake.Noop, wfIf, wf.Name, false, "")
 		assert.NoError(t, err)
 		newWfBytes, err := yaml.Marshal(newWf)
 		assert.NoError(t, err)
@@ -737,16 +757,42 @@ func TestRetryWorkflow(t *testing.T) {
 			common.LabelKeyCompleted:               "true",
 			common.LabelKeyWorkflowArchivingStatus: "Pending",
 		}},
-		Status: wfv1.WorkflowStatus{Phase: wfv1.NodeFailed},
+		Status: wfv1.WorkflowStatus{Phase: wfv1.WorkflowFailed},
 	}
-	_, err := wfClient.Create(wf)
+
+	ctx := context.Background()
+	_, err := wfClient.Create(ctx, wf, metav1.CreateOptions{})
 	assert.NoError(t, err)
-	wf, err = RetryWorkflow(kubeClient, hydratorfake.Always, wfClient, wf.Name, false, "")
+	wf, err = RetryWorkflow(ctx, kubeClient, hydratorfake.Always, wfClient, wf.Name, false, "")
 	if assert.NoError(t, err) {
-		assert.Equal(t, wfv1.NodeRunning, wf.Status.Phase)
+		assert.Equal(t, wfv1.WorkflowRunning, wf.Status.Phase)
 		assert.NotContains(t, wf.Labels, common.LabelKeyCompleted)
 		assert.NotContains(t, wf.Labels, common.LabelKeyWorkflowArchivingStatus)
 	}
+}
+
+func TestFromUnstructuredObj(t *testing.T) {
+	un := &unstructured.Unstructured{}
+	err := yaml.Unmarshal([]byte(`apiVersion: argoproj.io/v1alpha1
+kind: CronWorkflow
+metadata:
+  name: example-integers
+spec:
+  schedule: "* * * * *"
+  workflowSpec:
+    entrypoint: whalesay
+    templates:
+      - name: whalesay
+        inputs:
+          parameters:
+            - name: age
+              value: 20
+        container:
+          image: my-image`), un)
+	assert.NoError(t, err)
+	x := &wfv1.CronWorkflow{}
+	err = FromUnstructuredObj(un, x)
+	assert.NoError(t, err)
 }
 
 func TestToUnstructured(t *testing.T) {
